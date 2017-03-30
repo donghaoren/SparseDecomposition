@@ -29,21 +29,26 @@ class Decomposition:
             if len(I.shape) == 3:
                 I = I[:,:,0] * 0.2126 + I[:,:,1] * 0.7152 + I[:,:,2] * 0.0722
 
-        xCount = I.shape[0] - self.dictionary.patchWH + 1
-        yCount = I.shape[1] - self.dictionary.patchWH + 1
-        N = xCount * yCount
+        xySkip = 1
+        xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
+        yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
+        N = len(xRange) * len(yRange)
         patches = np.zeros((self.dictionary.patchsize, N))
         xys = []
         means = []
-        for x in range(xCount):
-            for y in range(yCount):
-                i = x * yCount + y
+        i = 0
+        for x in xRange:
+            for y in yRange:
                 xys.append([ x, y ])
                 patch = I[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH]
-                mean = np.mean(patch)
+                if self.dictionary.isColor:
+                    mean = np.mean(patch, axis = (0, 1))
+                else:
+                    mean = np.mean(patch)
                 patch = patch - mean
                 means.append(mean)
                 patches[:,i] = np.reshape(patch, self.dictionary.patchsize)
+                i += 1
 
         if self.ZCAMatrix is not None:
             patches = np.dot(self.ZCAMatrix, patches)
@@ -58,9 +63,9 @@ class Decomposition:
             lambda1 = lambda1
         )
 
-        Ir = [ np.zeros(I.shape, dtype = np.float64) for i in range(self.dictionary.size) ]
-        Im = np.zeros(I.shape, dtype = np.float64)
-        Ic = np.zeros(I.shape, dtype = np.float64)
+        Ir = [ np.zeros(I.shape, dtype = np.float32) for i in range(self.dictionary.size) ]
+        Im = np.zeros(I.shape, dtype = np.float32)
+        Ic = np.zeros(I.shape, dtype = np.float32)
 
         Dx = self.dictionary.D
         if self.ZCAMatrix is not None:
@@ -73,13 +78,20 @@ class Decomposition:
             data = result.data[i0:i1]
             encoding = zip(indices.tolist(), data.tolist())
             x, y = xys[i]
-            for idx, w in encoding:
-                Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH))
+            if self.dictionary.isColor:
+                for idx, w in encoding:
+                    Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH,:] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH, 3))
+            else:
+                for idx, w in encoding:
+                    Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH))
             Im[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
             Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
 
-        with open(self.getAuxFile(imageFile, "decomposition.pkl"), "wb") as f:
-            pickle.dump([ Ir, Im, Ic ], f)
+
+
+        self.Ir = Ir
+        self.Im = Im
+        self.Ic = Ic
 
         # decomposition = []
 
@@ -97,9 +109,21 @@ class Decomposition:
         # with open(self.getAuxFile(imageFile, "decomposition.pkl"), "wb") as f:
         #     pickle.dump([ I.shape, decomposition ], f)
 
-    def recompose(self, imageFile, outputFile, ids = None):
+    def save(self, imageFile):
+        with open(self.getAuxFile(imageFile, "decomposition.pkl"), "wb") as f:
+            pickle.dump([ self.Ir, self.Im, self.Ic ], f)
+
+    def load(self, imageFile):
         with open(self.getAuxFile(imageFile, "decomposition.pkl"), "rb") as f:
             Ir, Im, Ic = pickle.load(f)
+        self.Ir = Ir
+        self.Im = Im
+        self.Ic = Ic
+
+    def recompose(self, imageFile, outputFile, ids = None):
+        Ir = self.Ir
+        Im = self.Im
+        Ic = self.Ic
 
         if ids == None:
             I = Im

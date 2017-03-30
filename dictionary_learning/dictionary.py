@@ -5,7 +5,7 @@ import numpy as np
 class Dictionary:
     def __init__(self, file):
         with open(file, "rb") as f:
-            t, D, A, B = pickle.load(f)
+            D = np.load(f)
 
         self.D = D
         self.size = D.shape[1]
