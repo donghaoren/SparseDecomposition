@@ -3,9 +3,17 @@ import pickle
 import numpy as np
 
 class Dictionary:
-    def __init__(self, file):
-        with open(file, "rb") as f:
-            D = np.load(f)
+    def __init__(self, file, ZCAMatrix = None):
+        D = np.load(file)
+        if ZCAMatrix is not None:
+            self.ZCAMatrix = np.load(ZCAMatrix)
+            self.ZCAMatrixInverse = np.linalg.inv(self.ZCAMatrix)
+            self.ZD = np.dot(self.ZCAMatrixInverse, D)
+        else:
+            self.ZCAMatrix = None
+            self.ZCAMatrixInverse = None
+            self.ZD = D
+
 
         self.D = D
         self.size = D.shape[1]
