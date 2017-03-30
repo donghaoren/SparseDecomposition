@@ -166,7 +166,7 @@ class HierarchicalDecomposition:
         return os.path.join(d, withoutext + "." + auxFile)
 
     def encodePatches(self, I, lambda1, extractMean = True):
-        xySkip = 2
+        xySkip = 1
         xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
         yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
         N = len(xRange) * len(yRange)
@@ -250,11 +250,15 @@ class HierarchicalDecomposition:
         result = []
         for img in hierarchy:
             if imgPrevious is not None:
-                Ir, Im, Ic = self.encodePatches(img - zoomImage(imgPrevious, 2), lambda1, extractMean = False)
-                Ireconstruct = sumArrays(Ir) / np.maximum(Ic, 0.00001)
+                offset = zoomImage(imgPrevious, 2)
+                Ir, Im, Ic = self.encodePatches(img - offset, lambda1)
             else:
+                offset = None
                 Ir, Im, Ic = self.encodePatches(img, lambda1)
-                Ireconstruct = (sumArrays(Ir) + Im) / np.maximum(Ic, 0.00001)
+
+            Ireconstruct = (sumArrays(Ir) + Im) / np.maximum(Ic, 0.00001)
+            if offset is not None:
+                Ireconstruct += offset
 
             result.append(( Ir, Im, Ic ))
 
@@ -280,13 +284,9 @@ class HierarchicalDecomposition:
         if ids == None:
             ids = set(range(self.dictionary.size))
 
-        isFirst = True
         imgPrevious = None
         for Ir, Im, Ic in self.encoding:
-            if imgPrevious is None:
-                I = Im
-            else:
-                I = np.zeros(Im.shape, np.float32)
+            I = Im
 
             for r, idx in zip(Ir, range(len(Ir))):
                 if idx in ids:
