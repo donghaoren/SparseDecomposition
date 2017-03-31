@@ -8,15 +8,15 @@ from scipy import ndimage
 
 def zoomImage(I, factor):
     if len(I.shape) == 2:
-        return ndimage.zoom(I, (factor, factor))
+        return ndimage.zoom(I, (factor, factor), mode = "nearest")
     else:
-        return ndimage.zoom(I, (factor, factor, 1))
+        return ndimage.zoom(I, (factor, factor, 1), mode = "nearest")
 
 def zoomImageToSize(I, size):
     if len(I.shape) == 2:
-        return ndimage.zoom(I, (float(size[0]) / I.shape[0], float(size[1]) / I.shape[1]))
+        return ndimage.zoom(I, (float(size[0]) / I.shape[0], float(size[1]) / I.shape[1]), mode = "nearest")
     else:
-        return ndimage.zoom(I, (float(size[0]) / I.shape[0], float(size[1]) / I.shape[1], 1))
+        return ndimage.zoom(I, (float(size[0]) / I.shape[0], float(size[1]) / I.shape[1], 1), mode = "nearest")
 
 
 def sumArrays(Is):
