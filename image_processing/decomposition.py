@@ -44,7 +44,7 @@ class Decomposition:
             if len(I.shape) == 3:
                 I = I[:,:,0] * 0.2126 + I[:,:,1] * 0.7152 + I[:,:,2] * 0.0722
 
-        xySkip = 1
+        xySkip = 16
         xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
         yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
         N = len(xRange) * len(yRange)
