@@ -31,6 +31,16 @@ def saveImage(I, file, scale = False):
     a = np.uint8(np.clip(I, 0, 1) * 255)
     Image.fromarray(a).save(file, "png")
 
+def splitArray(array, chunkSize):
+    a = []
+    for item in array:
+        a.append(item)
+        if len(a) >= chunkSize:
+            yield a
+            a = []
+    if len(a) > 0:
+        yield a
+
 class Denoising:
     def __init__(self, dictionary):
         self.dictionary = dictionary
@@ -48,64 +58,65 @@ class Denoising:
             if len(I.shape) == 3:
                 I = I[:,:,0] * 0.2126 + I[:,:,1] * 0.7152 + I[:,:,2] * 0.0722
 
-        xySkip = 2
-        xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
-        yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
-        N = len(xRange) * len(yRange)
-        patches = np.zeros((self.dictionary.patchsize, N))
-        xys = []
-        means = []
-        i = 0
-        for x in xRange:
-            for y in yRange:
-                xys.append([ x, y ])
-                patch = I[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH]
-                if self.dictionary.isColor:
-                    mean = np.mean(patch, axis = (0, 1))
-                else:
-                    mean = np.mean(patch)
-                patch = patch - mean
-                means.append(mean)
-                patches[:,i] = np.reshape(patch, self.dictionary.patchsize)
-                i += 1
-
-        if self.dictionary.ZCAMatrix is not None:
-            patches = np.dot(self.dictionary.ZCAMatrix, patches)
-
-        patches = np.asfortranarray(patches, dtype = np.float64)
-
-        # Decompose
-        result = spams.lasso(
-            patches,
-            D = np.asfortranarray(self.dictionary.D, dtype = np.float64),
-            return_reg_path = False, mode = 2, numThreads= -1,
-            lambda1 = lambda1
-        )
-
         Ir = np.zeros(I.shape, dtype = np.float32)
-        Im = np.zeros(I.shape, dtype = np.float32)
         Ic = np.zeros(I.shape, dtype = np.float32)
 
         Dx = self.dictionary.ZD
 
-        for i in range(N):
-            i0 = result.indptr[i]
-            i1 = result.indptr[i + 1]
-            indices = result.indices[i0:i1]
-            data = result.data[i0:i1]
-            encoding = zip(indices.tolist(), data.tolist())
-            x, y = xys[i]
-            patch = np.zeros(Dx[:, 0].shape, np.float32)
-            for idx, w in encoding:
-                patch += Dx[:, idx] * w
-            if self.dictionary.isColor:
-                Ir[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH,:] += patch.reshape((self.dictionary.patchWH, self.dictionary.patchWH, 3))
-            else:
-                Ir[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += patch.reshape((self.dictionary.patchWH, self.dictionary.patchWH))
-            Im[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
-            Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
+        xySkip = 1
+        xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
+        yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
 
-        return Ir, Im, Ic
+        for xs in splitArray(xRange, 100):
+            N = len(yRange) * len(xs)
+            i = 0
+            patches = np.zeros((self.dictionary.patchsize, N))
+            xys = []
+            means = []
+            for x in xs:
+                for y in yRange:
+                    xys.append([ x, y ])
+                    patch = I[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH]
+                    if self.dictionary.isColor:
+                        mean = np.mean(patch, axis = (0, 1))
+                    else:
+                        mean = np.mean(patch)
+                    patch = patch - mean
+                    means.append(mean)
+                    patches[:,i] = np.reshape(patch, self.dictionary.patchsize)
+                    i += 1
+
+            if self.dictionary.ZCAMatrix is not None:
+                patches = np.dot(self.dictionary.ZCAMatrix, patches)
+
+            patches = np.asfortranarray(patches, dtype = np.float64)
+
+            # Decompose
+            result = spams.lasso(
+                patches,
+                D = np.asfortranarray(self.dictionary.D, dtype = np.float64),
+                return_reg_path = False, mode = 2, numThreads= -1,
+                lambda1 = lambda1
+            )
+
+            for i in range(N):
+                i0 = result.indptr[i]
+                i1 = result.indptr[i + 1]
+                indices = result.indices[i0:i1]
+                data = result.data[i0:i1]
+                encoding = zip(indices.tolist(), data.tolist())
+                x, y = xys[i]
+                patch = np.zeros(Dx[:, 0].shape, np.float32)
+                for idx, w in encoding:
+                    patch += Dx[:, idx] * w
+                if self.dictionary.isColor:
+                    Ir[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH,:] += patch.reshape((self.dictionary.patchWH, self.dictionary.patchWH, 3))
+                else:
+                    Ir[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += patch.reshape((self.dictionary.patchWH, self.dictionary.patchWH))
+                Ir[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
+                Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
+
+        return Ir, Ic
 
     def denoising(self, imageFile, outputFile, lambda1 = 0.1):
         img = Image.open(imageFile)
@@ -128,20 +139,17 @@ class Denoising:
         # Encode hierarchy:
         imgPrevious = None
         layerIndex = 1
-        result = []
         for img in hierarchy:
             if imgPrevious is not None:
                 offset = zoomImageToSize(imgPrevious, img.shape[0:2])
-                Ir, Im, Ic = self.encodePatches(img - offset, lambda1)
+                Ir, Ic = self.encodePatches(img - offset, lambda1)
             else:
                 offset = None
-                Ir, Im, Ic = self.encodePatches(img, lambda1)
+                Ir, Ic = self.encodePatches(img, lambda1)
 
-            Ireconstruct = (Ir + Im) / np.maximum(Ic, 0.00001)
+            Ireconstruct = (Ir) / np.maximum(Ic, 0.00001)
             if offset is not None:
                 Ireconstruct += offset
-
-            result.append(( Ir, Im, Ic ))
 
             saveImage(Ireconstruct, self.getAuxFile(imageFile, "layer-%d.png" % layerIndex))
 
