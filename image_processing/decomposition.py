@@ -298,3 +298,40 @@ class HierarchicalDecomposition:
             imgPrevious = I
 
         saveImage(I, self.getAuxFile(imageFile, outputFile))
+
+    def interactive(self, imageFile, port = 8888):
+        import tornado.ioloop
+        import tornado.web
+        import json
+
+        dictionary = self.dictionary
+        myself = self
+
+        class ComposeHandler(tornado.web.RequestHandler):
+            def get(self):
+                ids = map(int, filter(lambda x: x != "", self.get_argument("ids", default = "").split(",")))
+                myself.recompose(imageFile, "server.png", ids)
+                with open(myself.getAuxFile(imageFile, "server.png"), "rb") as f:
+                    self.add_header("content-type", "image/png")
+                    self.write(f.read())
+
+        class DictionaryHandler(tornado.web.RequestHandler):
+            def get(self):
+                self.add_header("content-type", "application/json")
+                self.write(json.dumps({
+                    "patchWH": dictionary.patchWH,
+                    "D": dictionary.D.T.tolist(),
+                    "ZD": dictionary.ZD.T.tolist(),
+                    "size": dictionary.size,
+                    "dictwidth": dictionary.dictwidth
+                }))
+
+        app = tornado.web.Application([
+            (r"/api/compose", ComposeHandler),
+            (r"/api/dictionary", DictionaryHandler),
+            (r"/(.*)", tornado.web.StaticFileHandler, {"path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "static")})
+        ])
+
+        app.listen(port)
+        tornado.ioloop.IOLoop.current().start()
+        print "Listening on http port 8888..."
