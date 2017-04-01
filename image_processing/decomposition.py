@@ -236,7 +236,6 @@ class HierarchicalDecomposition:
                         Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH))
                 Im[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
                 Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
-        print Im[:,:,0], Ic[:,:,0]
         return Ir, Im, Ic
 
     def preprocess(self, imageFile, lambda1 = 0.05):
