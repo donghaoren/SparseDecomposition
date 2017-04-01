@@ -8,9 +8,9 @@ from scipy import ndimage
 
 def zoomImage(I, factor):
     if len(I.shape) == 2:
-        return ndimage.zoom(I, (factor, factor))
+        return ndimage.zoom(I, (factor, factor), mode = "nearest")
     else:
-        return ndimage.zoom(I, (factor, factor, 1))
+        return ndimage.zoom(I, (factor, factor, 1), mode = "nearest")
 
 def sumArrays(Is):
     I0 = Is[0]
@@ -23,6 +23,16 @@ def saveImage(I, file, scale = False):
         I = (I - np.min(I)) / (np.max(I) - np.min(I))
     a = np.uint8(np.clip(I, 0, 1) * 255)
     Image.fromarray(a).save(file, "png")
+
+def splitArray(array, chunkSize):
+    a = []
+    for item in array:
+        a.append(item)
+        if len(a) >= chunkSize:
+            yield a
+            a = []
+    if len(a) > 0:
+        yield a
 
 class Decomposition:
     def __init__(self, dictionary):
@@ -169,38 +179,7 @@ class HierarchicalDecomposition:
         xySkip = 1
         xRange = range(0, I.shape[0] - self.dictionary.patchWH + 1, xySkip)
         yRange = range(0, I.shape[1] - self.dictionary.patchWH + 1, xySkip)
-        N = len(xRange) * len(yRange)
-        patches = np.zeros((self.dictionary.patchsize, N))
-        xys = []
-        means = []
-        i = 0
-        for x in xRange:
-            for y in yRange:
-                xys.append([ x, y ])
-                patch = I[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH]
-                if self.dictionary.isColor:
-                    mean = np.mean(patch, axis = (0, 1))
-                else:
-                    mean = np.mean(patch)
-                if not extractMean:
-                    mean *= 0
-                patch = patch - mean
-                means.append(mean)
-                patches[:,i] = np.reshape(patch, self.dictionary.patchsize)
-                i += 1
 
-        if self.dictionary.ZCAMatrix is not None:
-            patches = np.dot(self.dictionary.ZCAMatrix, patches)
-
-        patches = np.asfortranarray(patches, dtype = np.float64)
-
-        # Decompose
-        result = spams.lasso(
-            patches,
-            D = np.asfortranarray(self.dictionary.D, dtype = np.float64),
-            return_reg_path = False, mode = 2, numThreads= -1,
-            lambda1 = lambda1
-        )
 
         Ir = [ np.zeros(I.shape, dtype = np.float32) for i in range(self.dictionary.size) ]
         Im = np.zeros(I.shape, dtype = np.float32)
@@ -208,22 +187,56 @@ class HierarchicalDecomposition:
 
         Dx = self.dictionary.ZD
 
-        for i in range(N):
-            i0 = result.indptr[i]
-            i1 = result.indptr[i + 1]
-            indices = result.indices[i0:i1]
-            data = result.data[i0:i1]
-            encoding = zip(indices.tolist(), data.tolist())
-            x, y = xys[i]
-            if self.dictionary.isColor:
-                for idx, w in encoding:
-                    Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH,:] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH, 3))
-            else:
-                for idx, w in encoding:
-                    Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH))
-            Im[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
-            Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
+        for xs in splitArray(xRange, 100):
+            N = len(yRange) * len(xs)
+            patches = np.zeros((self.dictionary.patchsize, N))
+            xys = []
+            means = []
+            i = 0
+            for x in xs:
+                for y in yRange:
+                    xys.append([ x, y ])
+                    patch = I[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH]
+                    if self.dictionary.isColor:
+                        mean = np.mean(patch, axis = (0, 1))
+                    else:
+                        mean = np.mean(patch)
+                    if not extractMean:
+                        mean *= 0
+                    patch = patch - mean
+                    means.append(mean)
+                    patches[:,i] = np.reshape(patch, self.dictionary.patchsize)
+                    i += 1
 
+            if self.dictionary.ZCAMatrix is not None:
+                patches = np.dot(self.dictionary.ZCAMatrix, patches)
+
+            patches = np.asfortranarray(patches, dtype = np.float64)
+
+            # Decompose
+            result = spams.lasso(
+                patches,
+                D = np.asfortranarray(self.dictionary.D, dtype = np.float64),
+                return_reg_path = False, mode = 2, numThreads= -1,
+                lambda1 = lambda1
+            )
+
+            for i in range(N):
+                i0 = result.indptr[i]
+                i1 = result.indptr[i + 1]
+                indices = result.indices[i0:i1]
+                data = result.data[i0:i1]
+                encoding = zip(indices.tolist(), data.tolist())
+                x, y = xys[i]
+                if self.dictionary.isColor:
+                    for idx, w in encoding:
+                        Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH,:] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH, 3))
+                else:
+                    for idx, w in encoding:
+                        Ir[idx][x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += (Dx[:, idx] * w).reshape((self.dictionary.patchWH, self.dictionary.patchWH))
+                Im[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += means[i]
+                Ic[x:x+self.dictionary.patchWH,y:y+self.dictionary.patchWH] += 1
+        print Im[:,:,0], Ic[:,:,0]
         return Ir, Im, Ic
 
     def preprocess(self, imageFile, lambda1 = 0.05):
