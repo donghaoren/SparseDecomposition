@@ -333,5 +333,5 @@ class HierarchicalDecomposition:
         ])
 
         app.listen(port)
-        tornado.ioloop.IOLoop.current().start()
         print "Listening on http port 8888..."
+        tornado.ioloop.IOLoop.current().start()
