@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<style>
+div, img, p { margin: 0; padding: 0; line-height: 1em; }
+#patches {
+    display: inline-block;
+    background-color: black;
+    padding-left: 1px;
+    padding-top: 1px;
+    line-height: 16px;
+    -webkit-user-select: none;
+}
+#patches p {
+    margin-bottom: 1px;
+}
+#patches img {
+    margin-right: 1px;
+    cursor: pointer;
+}
+#patches img.selected {
+    opacity: 0.5;
+}
+</style>
+
+<div id="patches"></div>
+<img id="composed" src="/api/compose?ids=1" />
+
+
+
+<script type="text/javascript">
+var canvas = document.createElement("canvas");
+function displayPatch(D, WH, isColor) {
+    canvas.width = WH;
+    canvas.height = WH;
+    let ctx = canvas.getContext("2d");
+    let data = ctx.getImageData(0, 0, WH, WH);
+    let convert = (val) => Math.min(255, Math.max(0, val * 500 + 128))
+    for(let y = 0; y < WH; y++) {
+        for(let x = 0; x < WH; x++) {
+            let ptr = (y * WH + x) * 4;
+            data.data[ptr + 0] = convert(D[(y * WH + x) * 3 + 0]);
+            data.data[ptr + 1] = convert(D[(y * WH + x) * 3 + 1]);
+            data.data[ptr + 2] = convert(D[(y * WH + x) * 3 + 2]);
+            data.data[ptr + 3] = 255;
+        }
+    }
+    ctx.putImageData(data, 0, 0);
+    return canvas.toDataURL("image/png");
+}
+
+d3.json("/api/dictionary", (data) => {
+    let patches = d3.select("#patches");
+    let rows = data.dictwidth;
+    let rs = [];
+    for(let i = 0; i < rows; i++) {
+        let r = []
+        for(let j = 0; j < rows; j++) {
+            r.push(j + i * rows);
+        }
+        rs.push(r);
+    }
+
+    let isSelected = data.D.map(d => false);
+
+    patches.style("width", data.dictwidth * (data.patchWH + 1) + "px");
+    patches.style("height", data.dictwidth * (data.patchWH + 1) + "px");
+
+    let imgs = patches.selectAll("p").data(rs).enter().append("p")
+        .style("height", data.patchWH + "px")
+        .selectAll("img").data((d) => d).enter().append("img")
+            .attr("src", (d) => displayPatch(data.D[d], data.patchWH, true))
+            .style("width", data.patchWH + "px")
+            .style("height", data.patchWH + "px")
+            .on("click", (d) => {
+                console.log(d);
+                isSelected[d] = !isSelected[d];
+                imgs.classed("selected", d => isSelected[d]);
+                updateImage();
+            });
+
+    function updateImage() {
+        let ids = [];
+        isSelected.forEach((d, i) => {
+            if(d) ids.push(i);
+        });
+        let idsstr = ids.join(",");
+        d3.select("#composed").attr("src", "/api/compose?ids=" + idsstr);
+    }
+})
+
+</script>
