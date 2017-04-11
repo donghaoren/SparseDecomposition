@@ -21,15 +21,25 @@ def createStructuredDictionary(width, patchsize, overlap):
 
 class StructuredDictionaryLearner:
 
-    def __init__(self, dictwidth=20, patchsize=1024, batchsize=100, lambda1=0.2, overlap = 4, color = False):
-        dictsize = dictwidth * dictwidth
-        self.dictsize = dictsize
-        self.patchsize = patchsize
-        self.batchsize = batchsize
-        self.lambda1 = lambda1
-        self.color = color
+    def __init__(self, dictwidth=20, patchsize=1024, batchsize=100, lambda1=0.2, overlap = 4, color = False, structure = None):
+        if structure:
+            D0, DG = structure
+            dictsize = D0.shape[1]
+            patchsize = D0.shape[0]
+            self.dictsize = dictsize
+            self.patchsize = patchsize
+            self.batchsize = batchsize
+            self.lambda1 = lambda1
+            self.color = color
+        else:
+            dictsize = dictwidth * dictwidth
+            self.dictsize = dictsize
+            self.patchsize = patchsize
+            self.batchsize = batchsize
+            self.lambda1 = lambda1
+            self.color = color
 
-        D0, DG = createStructuredDictionary(dictwidth, patchsize, overlap)
+            D0, DG = createStructuredDictionary(dictwidth, patchsize, overlap)
 
         batch = tf.placeholder(dtype=tf.float32)
         j = tf.placeholder(dtype=tf.int32)
