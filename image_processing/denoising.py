@@ -134,12 +134,13 @@ class Denoising:
         sizes = []
         while min(Ic.shape[0], Ic.shape[1]) >= self.dictionary.patchWH:
             hierarchy = [ Ic ] + hierarchy
-            Ic = zoomImage(Ic, 0.25)
+            Ic = zoomImage(Ic, 0.5)
 
         # Encode hierarchy:
         imgPrevious = None
         layerIndex = 1
         for img in hierarchy:
+            print "layer %d, %s" % (layerIndex, img.shape)
             if imgPrevious is not None:
                 offset = zoomImageToSize(imgPrevious, img.shape[0:2])
                 Ir, Ic = self.encodePatches(img - offset, lambda1)
