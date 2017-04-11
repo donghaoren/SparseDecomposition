@@ -73,11 +73,6 @@ import math
 ds = Dataset(name = args.datasetName, datasetDirectory = args.datasetDirectory)
 ds.filterStddev(0.3)
 
-sz = int(math.sqrt(args.size))
-if args.size != sz * sz:
-    print "Dictionary size must be a perfect square."
-    exit(-1)
-
 patchsize = ds.patchSize * ds.patchSize * 3 if ds.color else ds.patchSize * ds.patchSize
 
 with tf.device(args.device):
