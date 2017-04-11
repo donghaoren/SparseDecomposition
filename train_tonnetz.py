@@ -39,15 +39,17 @@ def generateTonnetzStructure(patchsize):
     for note in c:
         groups.add(tuple(sorted([ note ] + list(c[note]))))
 
-    print groups, len(groups)
-
-    D0 = np.random.uniform(-0.01, 0.01, (patchsize, N))
-    DG = np.zeros((len(groups), N))
+    repeat = 5
+    D0 = np.random.uniform(-0.01, 0.01, (patchsize, N * repeat))
+    DG = np.zeros((len(groups) * repeat, N * repeat))
     idx = 0
     for g in groups:
-        for y in g:
-            DG[idx, y] = 1
-        idx += 1
+        for i in range(repeat):
+            for j in range(3):
+                d = (i + j) % repeat
+                for y in g:
+                    DG[idx, y + d * N] = 1
+            idx += 1
     return D0, DG
 
 parser = argparse.ArgumentParser(description='Create a dataset from images')
