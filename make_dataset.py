@@ -16,8 +16,6 @@ parser.add_argument('--count', type=int, help="number of patches per image (defa
 parser.add_argument('--color', type='bool', help="generate color patches (default no)", default=False)
 args = parser.parse_args()
 
-print args
-exit(0)
 
 from dictionary_learning.dataset import createDataset, Dataset
 from dictionary_learning.utils import displayPatches, showArray

@@ -126,7 +126,7 @@ class StructuredDictionaryLearner:
         ], file)
 
     def loadModel(self, session, file, loadAB = True):
-        t, D, A, B = pickle.load(f)
+        t, D, A, B = pickle.load(file)
         self.t = t
         session.run(self.D.assign(D))
         if loadAB:
