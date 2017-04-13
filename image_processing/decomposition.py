@@ -311,6 +311,26 @@ class HierarchicalDecomposition:
 
         saveImage(I, self.getAuxFile(imageFile, outputFile))
 
+    def recomposeBasis(self, imageFile, ids = None, mean = False):
+        imgPrevious = None
+        for Ir, Im, Ic in self.encoding:
+            if mean:
+                I = Im
+            else:
+                I = Im * 0
+
+            for r, idx in zip(Ir, range(len(Ir))):
+                if idx in ids:
+                    I = I + r
+            I = I / np.maximum(Ic, 0.00001)
+
+            if imgPrevious is not None:
+                I = I + zoomImage(imgPrevious, 2)
+
+            imgPrevious = I
+
+        return I
+
     def interactive(self, imageFile, port = 8888):
         import tornado.ioloop
         import tornado.web
