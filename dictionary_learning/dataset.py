@@ -17,19 +17,30 @@ def zcaWhitening(inputs):
 
 def generatePatches(I, N, size, color):
     print "  Generating patches:", I.shape
+    rsize = size * 4
+    x0 = size
+    y0 = size
     if color:
         for i in range(N):
-            x = random.randint(0, I.shape[0] - size - 1)
-            y = random.randint(0, I.shape[1] - size - 1)
-            patch = I[x:x+size, y:y+size, :]
+            x = random.randint(0, I.shape[0] - rsize - 1)
+            y = random.randint(0, I.shape[1] - rsize - 1)
+            patch = I[x:x+rsize, y:y+rsize, :]
+            angle = random.uniform(0, 360)
+            patch = ndimage.rotate(patch, angle, reshape = False, mode = "nearest")
+            patch = patch[x0:x0+size*2, y0:y0+size*2, :]
+            patch = ndimage.zoom(patch, (0.5, 0.5, 1), mode = "nearest")
             # Centering
             patch = patch - np.mean(patch, axis = (0, 1))
             yield np.reshape(patch, (size * size * 3))
     else:
         for i in range(N):
-            x = random.randint(0, I.shape[0] - size - 1)
-            y = random.randint(0, I.shape[1] - size - 1)
-            patch = I[x:x+size, y:y+size]
+            x = random.randint(0, I.shape[0] - rsize - 1)
+            y = random.randint(0, I.shape[1] - rsize - 1)
+            patch = I[x:x+rsize, y:y+rsize]
+            angle = random.uniform(0, 360)
+            patch = ndimage.rotate(patch, angle, reshape = False, mode = "nearest")
+            patch = patch[x0:x0+size*2, y0:y0+size*2]
+            patch = ndimage.zoom(patch, (0.5, 0.5), mode = "nearest")
             # Centering
             patch = patch - np.mean(patch)
             yield np.reshape(patch, (size * size))
@@ -58,17 +69,17 @@ def processImages(directory, patchSize, numPatches, color):
         print path, I.shape
         scale = 1600.0 / I.shape[0]
         if color:
-            I = ndimage.zoom(I, [ scale, scale, 1 ])
+            I = ndimage.zoom(I, [ scale, scale, 1 ], mode = "nearest")
         else:
-            I = ndimage.zoom(I, [ scale, scale ])
+            I = ndimage.zoom(I, [ scale, scale ], mode = "nearest")
         N = numPatches
         while I.shape[0] > 64:
             for patch in generatePatches(I, N, patchSize, color):
                 result.append(patch)
             if color:
-                I = ndimage.zoom(I, [ 0.5, 0.5, 1 ])
+                I = ndimage.zoom(I, [ 0.5, 0.5, 1 ], mode = "nearest")
             else:
-                I = ndimage.zoom(I, [ 0.5, 0.5 ])
+                I = ndimage.zoom(I, [ 0.5, 0.5 ], mode = "nearest")
             N = N / 4
     return np.matrix(result).T
 
